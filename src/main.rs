@@ -1,10 +1,13 @@
+use piston_window::ellipse::circle;
 use piston_window::*;
 
+#[derive(Debug)]
 struct Vector {
     x: f64,
     y: f64,
 }
 
+#[derive(Debug, PartialEq)]
 struct Position {
     x: f64,
     y: f64,
@@ -18,6 +21,7 @@ fn pos(x: f64, y: f64) -> Position {
     Position { x, y }
 }
 
+#[derive(Debug)]
 struct UniformBody {
     mass: f64,
     pos: Position,
@@ -52,14 +56,13 @@ impl Engine {
 
 impl Engine {
     fn tick(&mut self, dt: f64) {
-        let gf = v(0.0, -self.gf);
-        for mut body in self.bodies {
-            let ax = gf.x;
-            let ay = gf.y;
-            let vx = ax / dt;
-            let vy = ay / dt;
-            let sx = dt / 2 * (vx - body.velocity.x);
-            let sy = dt / 2 * (vy - body.velocity.y);
+        for body in self.bodies.iter_mut() {
+            let ax = 0.0;
+            let ay = -self.ga;
+            let vx = body.velocity.x + (ax / dt);
+            let vy = body.velocity.y + (ay / dt);
+            let sx = (dt / 2.0) * (vx + body.velocity.x);
+            let sy = (dt / 2.0) * (vy + body.velocity.y);
             body.velocity = v(vx, vy);
             body.pos = pos(body.pos.x + sx, body.pos.y + sy);
         }
@@ -68,6 +71,10 @@ impl Engine {
     fn add_body(&mut self, b: UniformBody) {
         self.bodies.push(b);
     }
+
+    fn get_bodies(&self) -> &[UniformBody] {
+        self.bodies.as_slice()
+    }
 }
 
 fn main() {
@@ -75,12 +82,21 @@ fn main() {
         .exit_on_esc(true)
         .build()
         .unwrap();
+
+    let mut engine = Engine::create(1.625);
+    engine.add_body(UniformBody::still_body(10.0, pos(300.0, 500.0)));
+
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _device| {
+            if let Some(render_args) = event.render_args() {
+                engine.tick(render_args.ext_dt);
+            }
             clear([1.0; 4], graphics);
-            rectangle(
-                [1.0, 0.0, 0.0, 1.0], // red
-                [0.0, 0.0, 100.0, 100.0],
+            let border = Ellipse::new_border([1.0, 0.0, 0.0, 1.0], 10.0);
+            let body = &engine.get_bodies()[0];
+            border.draw(
+                rectangle::centered_square(300.0, 480.0 - body.pos.y, 10.0),
+                &context.draw_state,
                 context.transform,
                 graphics,
             );
@@ -90,12 +106,21 @@ fn main() {
 
 #[cfg(test)]
 mod test {
-    use crate::UniformBody;
+    use crate::*;
 
     #[test]
     fn create_still_body() {
-        let engine = Engine::create(10.0);
+        let mut engine = Engine::create(10.0);
         engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
         engine.tick(1.0);
+        {
+            let body = &engine.get_bodies()[0];
+            assert_eq!(body.pos, pos(100.0, 95.0));
+        }
+        engine.tick(1.0);
+        {
+            let body = &engine.get_bodies()[0];
+            assert_eq!(body.pos, pos(100.0, 80.0));
+        }
     }
 }
