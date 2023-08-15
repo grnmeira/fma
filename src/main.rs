@@ -54,6 +54,22 @@ impl Engine {
     }
 }
 
+struct ViewPort {
+    origin: Position,
+    width: f64,
+    height: f64,
+    ratio: f64,
+}
+
+impl ViewPort {
+    fn translate(&self, real_pos: &Position) -> Position {
+        Position {
+            x: (real_pos.x - self.origin.x) * self.ratio,
+            y: (self.origin.y - real_pos.y) * self.ratio,
+        }
+    }
+}
+
 impl Engine {
     fn tick(&mut self, dt: f64) {
         for body in self.bodies.iter_mut() {
@@ -107,6 +123,33 @@ fn main() {
 #[cfg(test)]
 mod test {
     use crate::*;
+
+    #[test]
+    fn view_port_tests() {
+        let vp = ViewPort {
+            origin: pos(0.0, 480.0),
+            height: 480.0,
+            width: 640.0,
+            ratio: 1.0,
+        };
+
+        assert_eq!(vp.translate(&pos(0.0, 0.0)), pos(0.0, 480.0));
+        assert_eq!(vp.translate(&pos(640.0, 0.0)), pos(640.0, 480.0));
+        assert_eq!(vp.translate(&pos(0.0, 480.0)), pos(0.0, 0.0));
+        assert_eq!(vp.translate(&pos(640.0, 480.0)), pos(640.0, 0.0));
+
+        let vp = ViewPort {
+            origin: pos(0.0, 480.0),
+            height: 480.0,
+            width: 640.0,
+            ratio: 0.5,
+        };
+
+        assert_eq!(vp.translate(&pos(0.0, 0.0)), pos(0.0, 240.0));
+        assert_eq!(vp.translate(&pos(640.0, 0.0)), pos(320.0, 240.0));
+        assert_eq!(vp.translate(&pos(0.0, 480.0)), pos(0.0, 0.0));
+        assert_eq!(vp.translate(&pos(640.0, 480.0)), pos(320.0, 0.0));
+    }
 
     #[test]
     fn create_still_body() {
