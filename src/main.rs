@@ -38,6 +38,11 @@ impl UniformBody {
             velocity: v(0.0, 0.0),
         }
     }
+
+    fn apply_force(&mut self, fx: f64, fy: f64) {
+        self.acceleration.x = self.acceleration.x + (fx / self.mass);
+        self.acceleration.y = self.acceleration.y + (fy / self.mass);
+    }
 }
 
 struct Engine {
@@ -82,8 +87,8 @@ impl ViewPort {
 impl Engine {
     fn tick(&mut self, dt: f64) {
         for body in self.bodies.iter_mut() {
-            let ax = 0.0;
-            let ay = -self.ga;
+            let ax = body.acceleration.x;
+            let ay = body.acceleration.y - self.ga;
             let vx = body.velocity.x + (ax * dt);
             let vy = body.velocity.y + (ay * dt);
             let sx = (dt / 2.0) * (vx + body.velocity.x);
@@ -99,6 +104,10 @@ impl Engine {
 
     fn get_bodies(&self) -> &[UniformBody] {
         self.bodies.as_slice()
+    }
+
+    fn get_bodies_mut(&mut self) -> &mut [UniformBody] {
+        self.bodies.as_mut_slice()
     }
 }
 
@@ -209,5 +218,22 @@ mod test {
             let body = &engine.get_bodies()[0];
             assert_eq!(body.pos, pos(100.0, 99.1875));
         }
+    }
+
+    #[test]
+    fn force_opposite_to_gravity() {
+        let mut engine = Engine::create(10.0);
+        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine
+            .get_bodies_mut()
+            .first_mut()
+            .unwrap()
+            .apply_force(0.0, 100.0);
+
+        engine.tick(1.0);
+
+        let body = engine.get_bodies().first().unwrap();
+
+        assert_eq!(body.pos, pos(100.0, 100.0));
     }
 }
