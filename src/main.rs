@@ -43,6 +43,11 @@ impl UniformBody {
         self.acceleration.x = self.acceleration.x + (fx / self.mass);
         self.acceleration.y = self.acceleration.y + (fy / self.mass);
     }
+
+    fn set_resulting_force(&mut self, fx: f64, fy: f64) {
+        self.acceleration.x = fx / self.mass;
+        self.acceleration.y = fy / self.mass;
+    }
 }
 
 struct Engine {
@@ -150,6 +155,18 @@ fn main() {
         if let Some(update_args) = event.update_args() {
             engine.tick(update_args.dt);
         }
+
+        if let Some(button_args) = event.button_args() {
+            let body = engine.get_bodies_mut().first_mut().unwrap();
+            match button_args {
+                ButtonArgs {
+                    state: ButtonState::Press,
+                    button: Button::Keyboard(Key::Down),
+                    ..
+                } => body.apply_force(0.0, 100.0),
+                _ => body.set_resulting_force(0.0, 0.0),
+            }
+        }
     }
 }
 
@@ -229,6 +246,23 @@ mod test {
             .first_mut()
             .unwrap()
             .apply_force(0.0, 100.0);
+
+        engine.tick(1.0);
+
+        let body = engine.get_bodies().first().unwrap();
+
+        assert_eq!(body.pos, pos(100.0, 100.0));
+    }
+
+    #[test]
+    fn set_resulting_force() {
+        let mut engine = Engine::create(10.0);
+        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine
+            .get_bodies_mut()
+            .first_mut()
+            .unwrap()
+            .set_resulting_force(0.0, 100.0);
 
         engine.tick(1.0);
 
