@@ -160,10 +160,29 @@ fn main() {
             let body = engine.get_bodies_mut().first_mut().unwrap();
             match button_args {
                 ButtonArgs {
-                    state: ButtonState::Press,
+                    state,
                     button: Button::Keyboard(Key::Down),
                     ..
-                } => body.apply_force(0.0, 100.0),
+                } => match state {
+                    ButtonState::Press => body.apply_force(0.0, 100.0),
+                    ButtonState::Release => body.apply_force(0.0, -100.0),
+                },
+                ButtonArgs {
+                    state,
+                    button: Button::Keyboard(Key::Right),
+                    ..
+                } => match state {
+                    ButtonState::Press => body.apply_force(-100.0, 0.0),
+                    ButtonState::Release => body.apply_force(100.0, 0.0),
+                },
+                ButtonArgs {
+                    state,
+                    button: Button::Keyboard(Key::Left),
+                    ..
+                } => match state {
+                    ButtonState::Press => body.apply_force(100.0, 0.0),
+                    ButtonState::Release => body.apply_force(-100.0, 0.0),
+                },
                 _ => body.set_resulting_force(0.0, 0.0),
             }
         }
