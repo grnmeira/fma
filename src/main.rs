@@ -270,4 +270,22 @@ mod test {
 
         assert_eq!(body.pos, pos(100.0, 100.0));
     }
+
+    #[test]
+    fn forces_on_both_axis() {
+        let mut engine = Engine::create(0.0);
+        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+
+        {
+            let body = engine.get_bodies_mut().first_mut().unwrap();
+
+            body.apply_force(100.0, 0.0);
+            body.apply_force(0.0, 100.0);
+        }
+
+        engine.tick(1.0);
+
+        let body = engine.get_bodies_mut().first_mut().unwrap();
+        assert_eq!(body.pos, pos(105.0, 105.0));
+    }
 }
