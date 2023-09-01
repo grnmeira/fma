@@ -1,6 +1,8 @@
 use piston_window::ellipse::circle;
 use piston_window::*;
 
+use itertools::Itertools;
+
 #[derive(Debug)]
 struct Vector {
     x: f64,
@@ -19,6 +21,12 @@ fn v(x: f64, y: f64) -> Vector {
 
 fn pos(x: f64, y: f64) -> Position {
     Position { x, y }
+}
+
+macro_rules! positions {
+    ($(($x:expr, $y:expr)),*) => {
+        [$(crate::Position{ x: $x, y: $y }),*]
+    }
 }
 
 #[derive(Debug)]
@@ -114,6 +122,47 @@ impl Engine {
     fn get_bodies_mut(&mut self) -> &mut [UniformBody] {
         self.bodies.as_mut_slice()
     }
+}
+
+fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
+    shape1
+        .iter()
+        .circular_tuple_windows()
+        .map(|(p1, p2)| {
+            let a = (p1.y - p2.y) / (p1.x - p2.x);
+            let b = p1.y - (p1.x * a);
+            println!("segment: {p1:?}, {p2:?}");
+            println!("function: y = {a}x + {b}");
+            let a_orth = -1.0 / a;
+            println!("orthogonal: y = {a_orth}x");
+            projected_points = shape1
+                .iter()
+                .chain(shape2)
+                .map(|p| {
+                    println!("projecting point {p:?}");
+                    if a != 0.0 {
+                        //let a_proj = a;
+                        let b_proj = p.y - (a * p.x);
+                        println!("projection: y = x{a_proj} + {b_proj}");
+                        let projected_x = b_proj / (a_orth - a); // (a_orth - a) = (-1/a - a)
+                        let projected_y = (a * projected_x) + b_proj;
+                    } else {
+                        let projected_x = p.x;
+                        let projected_y = 0.0;
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            println!("orthogonal: y = {a_orth}x + {b}");
+            // projection of (x', y') on y = ax + b
+            // assume y' = a'x' + b'
+            // b' = y' -a'x'
+            // intersection point (xi, yi)
+            // xi = (b' - b) / (a - a')
+            // yi = a * xi + b
+        })
+        .collect::<Vec<_>>();
+    true
 }
 
 fn main() {
@@ -306,5 +355,26 @@ mod test {
 
         let body = engine.get_bodies_mut().first_mut().unwrap();
         assert_eq!(body.pos, pos(105.0, 105.0));
+    }
+
+    #[test]
+    fn collision_two_non_intersecting_triangles() {
+        let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
+        let triangle2 = positions![(3.0, 3.0), (4.0, 1.0), (5.0, 3.0)];
+        assert!(!collided(&triangle1, &triangle2));
+    }
+
+    #[test]
+    fn collision_two_triangles_sharing_one_edge() {
+        let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
+        let triangle2 = positions![(2.0, 3.0), (3.0, 1.0), (4.0, 3.0)];
+        assert!(collided(&triangle1, &triangle2));
+    }
+
+    #[test]
+    fn collision_two_triangles_overlapping() {
+        let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
+        let triangle2 = positions![(2.0, 2.0), (1.0, 4.0), (3.0, 4.0)];
+        assert!(collided(&triangle1, &triangle2));
     }
 }
