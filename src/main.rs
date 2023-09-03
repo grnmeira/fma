@@ -135,7 +135,7 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
             println!("function: y = {a}x + {b}");
             let a_orth = -1.0 / a;
             println!("orthogonal: y = {a_orth}x");
-            projected_points = shape1
+            let projected_points = shape1
                 .iter()
                 .chain(shape2)
                 .map(|p| {
@@ -143,17 +143,20 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
                     if a != 0.0 {
                         //let a_proj = a;
                         let b_proj = p.y - (a * p.x);
-                        println!("projection: y = x{a_proj} + {b_proj}");
+                        println!("projection: y = x{a} + {b_proj}");
                         let projected_x = b_proj / (a_orth - a); // (a_orth - a) = (-1/a - a)
                         let projected_y = (a * projected_x) + b_proj;
+                        println!("projected: ({projected_x}, {projected_y})");
                     } else {
-                        let projected_x = p.x;
-                        let projected_y = 0.0;
+                        println!("projection: x = c");
+                        let projected_x = 0.0;
+                        let projected_y = p.y;
+                        println!("projected: (0.0, {projected_y})");
                     }
                 })
                 .collect::<Vec<_>>();
 
-            println!("orthogonal: y = {a_orth}x + {b}");
+            //println!("orthogonal: y = {a_orth}x + {b}");
             // projection of (x', y') on y = ax + b
             // assume y' = a'x' + b'
             // b' = y' -a'x'
