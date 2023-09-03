@@ -124,6 +124,50 @@ impl Engine {
     }
 }
 
+fn project(position: &Position, line_gradient: f64) -> Position {
+    // projection of px, py on line P y = a*x + b
+    // assume line L y = a'*x + b' is the orthogonal line between px, py and y = a*x + b
+
+    // if a != 0, then:
+    //  a' = -1/a
+    //  b' = py - a'px
+
+    // intersection between L and P must be an x,y where:
+    // a' * x + b' = a * x + b
+    // simplify with b = 0 and calculate x:
+    // a' * x + b' = a * x
+    // a'x - ax = -b'
+    // x (a' - a) = -b'
+    // x = -b / (a' - a)
+    // calculate y:
+    // y = xa
+
+    // if a == 0, then
+    // y = 0
+    // x = x
+
+    let p = position;
+    let a = line_gradient;
+
+    println!("projecting point {p:?}");
+
+    if a != 0.0 {
+        let a_orth = -1.0 / a;
+        let b_orth = p.y - (a_orth * p.x);
+        println!("projection: y = x{a_orth} + {b_orth}");
+        let projected_x = (-b_orth) / (a_orth - a);
+        let projected_y = (a * projected_x);
+        println!("projected: ({projected_x}, {projected_y})");
+        pos(projected_x, projected_y)
+    } else {
+        println!("projection: x = c");
+        let projected_x = p.x;
+        let projected_y = 0.0;
+        println!("projected: ({projected_x}, {projected_y})");
+        pos(projected_x, projected_y)
+    }
+}
+
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
     shape1
         .iter()
@@ -138,31 +182,8 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
             let projected_points = shape1
                 .iter()
                 .chain(shape2)
-                .map(|p| {
-                    println!("projecting point {p:?}");
-                    if a != 0.0 {
-                        //let a_proj = a;
-                        let b_proj = p.y - (a * p.x);
-                        println!("projection: y = x{a} + {b_proj}");
-                        let projected_x = b_proj / (a_orth - a); // (a_orth - a) = (-1/a - a)
-                        let projected_y = (a * projected_x) + b_proj;
-                        println!("projected: ({projected_x}, {projected_y})");
-                    } else {
-                        println!("projection: x = c");
-                        let projected_x = 0.0;
-                        let projected_y = p.y;
-                        println!("projected: (0.0, {projected_y})");
-                    }
-                })
+                .map(|p| project(p, a_orth))
                 .collect::<Vec<_>>();
-
-            //println!("orthogonal: y = {a_orth}x + {b}");
-            // projection of (x', y') on y = ax + b
-            // assume y' = a'x' + b'
-            // b' = y' -a'x'
-            // intersection point (xi, yi)
-            // xi = (b' - b) / (a - a')
-            // yi = a * xi + b
         })
         .collect::<Vec<_>>();
     true
@@ -365,6 +386,14 @@ mod test {
         let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
         let triangle2 = positions![(3.0, 3.0), (4.0, 1.0), (5.0, 3.0)];
         assert!(!collided(&triangle1, &triangle2));
+    }
+
+    #[test]
+    fn point_projection() {
+        assert_eq!(project(&pos(5.0, 0.0), 0.0), pos(5.0, 0.0));
+        assert_eq!(project(&pos(0.0, 5.0), 0.0), pos(0.0, 0.0));
+        assert_eq!(project(&pos(2.0, 0.0), 1.0), pos(1.0, 1.0));
+        assert_eq!(project(&pos(0.0, 2.0), 1.0), pos(1.0, 1.0));
     }
 
     #[test]
