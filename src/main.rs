@@ -1,7 +1,7 @@
+use itertools::Itertools;
 use piston_window::ellipse::circle;
 use piston_window::*;
-
-use itertools::Itertools;
+use std::fmt;
 
 #[derive(Debug)]
 struct Vector {
@@ -13,6 +13,12 @@ struct Vector {
 struct Position {
     x: f64,
     y: f64,
+}
+
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({},{})", self.x, self.y)
+    }
 }
 
 fn v(x: f64, y: f64) -> Vector {
@@ -124,6 +130,8 @@ impl Engine {
     }
 }
 
+// Projects point `position` onto a line with gradient
+// `line_gradient` and y-interception 0.
 fn project(position: &Position, line_gradient: f64) -> Position {
     // projection of px, py on line P y = a*x + b
     // assume line L y = a'*x + b' is the orthogonal line between px, py and y = a*x + b
@@ -151,20 +159,24 @@ fn project(position: &Position, line_gradient: f64) -> Position {
 
     println!("projecting point {p:?}");
 
-    if a != 0.0 {
-        let a_orth = -1.0 / a;
-        let b_orth = p.y - (a_orth * p.x);
-        println!("projection: y = x{a_orth} + {b_orth}");
-        let projected_x = (-b_orth) / (a_orth - a);
-        let projected_y = (a * projected_x);
-        println!("projected: ({projected_x}, {projected_y})");
-        pos(projected_x, projected_y)
-    } else {
-        println!("projection: x = c");
-        let projected_x = p.x;
-        let projected_y = 0.0;
-        println!("projected: ({projected_x}, {projected_y})");
-        pos(projected_x, projected_y)
+    match a {
+        f64::INFINITY => pos(0.0, p.y),
+        0.0 => {
+            println!("projection: x = c");
+            let projected_x = p.x;
+            let projected_y = 0.0;
+            println!("projected: ({projected_x}, {projected_y})");
+            pos(projected_x, projected_y)
+        }
+        _ => {
+            let a_orth = -1.0 / a;
+            let b_orth = p.y - (a_orth * p.x);
+            println!("projection: y = x{a_orth} + {b_orth}");
+            let projected_x = (-b_orth) / (a_orth - a);
+            let projected_y = (a * projected_x);
+            println!("projected: ({projected_x}, {projected_y})");
+            pos(projected_x, projected_y)
+        }
     }
 }
 
@@ -179,11 +191,46 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
             println!("function: y = {a}x + {b}");
             let a_orth = -1.0 / a;
             println!("orthogonal: y = {a_orth}x");
-            let projected_points = shape1
+
+            let shape1_projections = shape1
                 .iter()
-                .chain(shape2)
-                .map(|p| project(p, a_orth))
+                .map(|p| project(&p, a_orth))
                 .collect::<Vec<_>>();
+
+            let shape2_projections = shape2
+                .iter()
+                .map(|p| project(&p, a_orth))
+                .collect::<Vec<_>>();
+
+            let shape1_min = shape1_projections
+                .iter()
+                .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
+                    pos(min_p.x.min(p.x), min_p.y.min(p.y))
+                });
+
+            let shape1_max = shape1_projections
+                .iter()
+                .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
+                    pos(max_p.x.max(p.x), max_p.y.max(p.y))
+                });
+
+            let shape2_min = shape2_projections
+                .iter()
+                .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
+                    pos(min_p.x.min(p.x), min_p.y.min(p.y))
+                });
+
+            let shape2_max = shape2_projections
+                .iter()
+                .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
+                    pos(max_p.x.max(p.x), max_p.y.max(p.y))
+                });
+
+            println!("shape1_min {shape1_min}");
+            println!("shape1_max {shape1_max}");
+
+            println!("shape2_min {shape2_min}");
+            println!("shape2_max {shape2_max}");
         })
         .collect::<Vec<_>>();
     true
@@ -394,6 +441,8 @@ mod test {
         assert_eq!(project(&pos(0.0, 5.0), 0.0), pos(0.0, 0.0));
         assert_eq!(project(&pos(2.0, 0.0), 1.0), pos(1.0, 1.0));
         assert_eq!(project(&pos(0.0, 2.0), 1.0), pos(1.0, 1.0));
+        assert_eq!(project(&pos(2.0, 0.0), -1.0), pos(1.0, -1.0));
+        assert_eq!(project(&pos(0.0, -2.0), -1.0), pos(1.0, -1.0));
     }
 
     #[test]
