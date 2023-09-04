@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use piston_window::ellipse::circle;
 use piston_window::*;
 use std::fmt;
 
@@ -82,10 +81,6 @@ struct ViewPort {
     /// Origin of viewport. It's the top left corner of
     /// the view port in meters.
     origin: Position,
-    /// Width of the viewport in meters.
-    width: f64,
-    /// Height of the viewport in meters.
-    height: f64,
     /// Ratio meter/pixel.
     ratio: f64,
 }
@@ -133,115 +128,72 @@ impl Engine {
 // Projects point `position` onto a line with gradient
 // `line_gradient` and y-interception 0.
 fn project(position: &Position, line_gradient: f64) -> Position {
-    // projection of px, py on line P y = a*x + b
-    // assume line L y = a'*x + b' is the orthogonal line between px, py and y = a*x + b
-
-    // if a != 0, then:
-    //  a' = -1/a
-    //  b' = py - a'px
-
-    // intersection between L and P must be an x,y where:
-    // a' * x + b' = a * x + b
-    // simplify with b = 0 and calculate x:
-    // a' * x + b' = a * x
-    // a'x - ax = -b'
-    // x (a' - a) = -b'
-    // x = -b / (a' - a)
-    // calculate y:
-    // y = xa
-
-    // if a == 0, then
-    // y = 0
-    // x = x
-
     let p = position;
     let a = line_gradient;
 
-    println!("projecting point {p:?}");
-
-    match a {
-        f64::INFINITY => pos(0.0, p.y),
-        0.0 => {
-            println!("projection: x = c");
-            let projected_x = p.x;
-            let projected_y = 0.0;
-            println!("projected: ({projected_x}, {projected_y})");
-            pos(projected_x, projected_y)
-        }
-        _ => {
-            let a_orth = -1.0 / a;
-            let b_orth = p.y - (a_orth * p.x);
-            println!("projection: y = x{a_orth} + {b_orth}");
-            let projected_x = (-b_orth) / (a_orth - a);
-            let projected_y = (a * projected_x);
-            println!("projected: ({projected_x}, {projected_y})");
-            pos(projected_x, projected_y)
-        }
+    if line_gradient == f64::INFINITY {
+        pos(0.0, p.y)
+    } else if line_gradient.abs() < f64::EPSILON {
+        pos(p.x, 0.0)
+    } else {
+        let a_orth = -1.0 / a;
+        let b_orth = p.y - (a_orth * p.x);
+        let projected_x = (-b_orth) / (a_orth - a);
+        let projected_y = a * projected_x;
+        pos(projected_x, projected_y)
     }
 }
 
+// Checks for collision between two convex polygons using
+// the "separating axis theorem" approach.
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
-    shape1
-        .iter()
-        .circular_tuple_windows()
-        .map(|(p1, p2)| {
-            let a = (p1.y - p2.y) / (p1.x - p2.x);
-            let b = p1.y - (p1.x * a);
-            println!("segment: {p1:?}, {p2:?}");
-            println!("function: y = {a}x + {b}");
-            let a_orth = -1.0 / a;
-            println!("orthogonal: y = {a_orth}x");
+    shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
+        let a = (p1.y - p2.y) / (p1.x - p2.x);
+        let a_orth = -1.0 / a;
 
-            let shape1_projections = shape1
-                .iter()
-                .map(|p| project(&p, a_orth))
-                .collect::<Vec<_>>();
+        let shape1_projections = shape1
+            .iter()
+            .map(|p| project(&p, a_orth))
+            .collect::<Vec<_>>();
 
-            let shape2_projections = shape2
-                .iter()
-                .map(|p| project(&p, a_orth))
-                .collect::<Vec<_>>();
+        let shape2_projections = shape2
+            .iter()
+            .map(|p| project(&p, a_orth))
+            .collect::<Vec<_>>();
 
-            let shape1_min = shape1_projections
-                .iter()
-                .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
-                    pos(min_p.x.min(p.x), min_p.y.min(p.y))
-                });
+        let shape1_min = shape1_projections
+            .iter()
+            .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
+                pos(min_p.x.min(p.x), min_p.y.min(p.y))
+            });
 
-            let shape1_max = shape1_projections
-                .iter()
-                .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
-                    pos(max_p.x.max(p.x), max_p.y.max(p.y))
-                });
+        let shape1_max = shape1_projections
+            .iter()
+            .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
+                pos(max_p.x.max(p.x), max_p.y.max(p.y))
+            });
 
-            let shape2_min = shape2_projections
-                .iter()
-                .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
-                    pos(min_p.x.min(p.x), min_p.y.min(p.y))
-                });
+        let shape2_min = shape2_projections
+            .iter()
+            .fold(pos(f64::MAX, f64::MAX), |min_p, p| {
+                pos(min_p.x.min(p.x), min_p.y.min(p.y))
+            });
 
-            let shape2_max = shape2_projections
-                .iter()
-                .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
-                    pos(max_p.x.max(p.x), max_p.y.max(p.y))
-                });
+        let shape2_max = shape2_projections
+            .iter()
+            .fold(pos(f64::MIN, f64::MIN), |max_p, p| {
+                pos(max_p.x.max(p.x), max_p.y.max(p.y))
+            });
 
-            println!("shape1_min {shape1_min}");
-            println!("shape1_max {shape1_max}");
-
-            println!("shape2_min {shape2_min}");
-            println!("shape2_max {shape2_max}");
-        })
-        .collect::<Vec<_>>();
-    true
+        (shape1_max.x >= shape2_min.x || shape1_max.y >= shape2_min.y)
+            && (shape2_max.x >= shape1_min.x && shape2_max.y >= shape1_min.y)
+    })
 }
 
 fn main() {
     let viewport = ViewPort {
         origin: pos(0.0, 100.0),
         ratio: 0.15,
-        height: 100.0,
-        width: 100.0,
     };
 
     let mut window: PistonWindow = WindowSettings::new(
@@ -317,8 +269,6 @@ mod test {
     fn view_port_tests() {
         let vp = ViewPort {
             origin: pos(0.0, 480.0),
-            height: 480.0,
-            width: 640.0,
             ratio: 1.0,
         };
 
@@ -329,8 +279,6 @@ mod test {
 
         let vp = ViewPort {
             origin: pos(0.0, 480.0),
-            height: 480.0,
-            width: 640.0,
             ratio: 2.0,
         };
 
@@ -341,8 +289,6 @@ mod test {
 
         let vp = ViewPort {
             origin: pos(0.0, 100.0),
-            height: 100.0,
-            width: 100.0,
             ratio: 0.10,
         };
 
@@ -429,13 +375,6 @@ mod test {
     }
 
     #[test]
-    fn collision_two_non_intersecting_triangles() {
-        let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
-        let triangle2 = positions![(3.0, 3.0), (4.0, 1.0), (5.0, 3.0)];
-        assert!(!collided(&triangle1, &triangle2));
-    }
-
-    #[test]
     fn point_projection() {
         assert_eq!(project(&pos(5.0, 0.0), 0.0), pos(5.0, 0.0));
         assert_eq!(project(&pos(0.0, 5.0), 0.0), pos(0.0, 0.0));
@@ -443,6 +382,13 @@ mod test {
         assert_eq!(project(&pos(0.0, 2.0), 1.0), pos(1.0, 1.0));
         assert_eq!(project(&pos(2.0, 0.0), -1.0), pos(1.0, -1.0));
         assert_eq!(project(&pos(0.0, -2.0), -1.0), pos(1.0, -1.0));
+    }
+
+    #[test]
+    fn collision_two_non_intersecting_triangles() {
+        let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
+        let triangle2 = positions![(3.0, 3.0), (4.0, 1.0), (5.0, 3.0)];
+        assert!(!collided(&triangle1, &triangle2));
     }
 
     #[test]
