@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use piston_window::*;
+use rand::Rng;
 use std::fmt;
 
 #[derive(Debug)]
@@ -8,7 +9,7 @@ struct Vector {
     y: f64,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Position {
     x: f64,
     y: f64,
@@ -190,6 +191,27 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
     })
 }
 
+fn generate_terrain() -> Vec<Position> {
+    let left_limit = 0.0;
+    let right_limit = 100.0;
+
+    let mut rng = rand::thread_rng();
+    let mut x = left_limit;
+    let mut terrain = vec![];
+
+    for _ in 0..21 {
+        terrain.push(pos(x, rng.gen_range(2.0..20.0)));
+        x = x + right_limit / 20.0;
+    }
+
+    let landing_site_index = rng.gen_range(0..terrain.len() - 1);
+
+    let landing_site_height = terrain.get(landing_site_index).unwrap().y;
+    terrain.get_mut(landing_site_index + 1).unwrap().y = landing_site_height;
+
+    terrain
+}
+
 fn main() {
     let viewport = ViewPort {
         origin: pos(0.0, 100.0),
@@ -210,6 +232,8 @@ fn main() {
     let mut engine = Engine::create(1.625);
     engine.add_body(UniformBody::still_body(10.0, pos(50.0, 100.0)));
 
+    let terrain = generate_terrain();
+
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _device| {
             clear([1.0; 4], graphics);
@@ -222,6 +246,19 @@ fn main() {
                 context.transform,
                 graphics,
             );
+            let line = Line::new([0.0, 0.0, 0.0, 1.0], 1.0);
+            terrain
+                .iter()
+                .map(|p| viewport.translate_pos(p))
+                .tuple_windows()
+                .for_each(|(p1, p2)| {
+                    line.draw(
+                        [p1.x, p1.y, p2.x, p2.y],
+                        &context.draw_state,
+                        context.transform,
+                        graphics,
+                    );
+                });
         });
 
         if let Some(update_args) = event.update_args() {
