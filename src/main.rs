@@ -55,8 +55,8 @@ impl ConvexBody {
     }
 
     fn apply_force(&mut self, fx: f64, fy: f64) {
-        self.acceleration.x = self.acceleration.x + (fx / self.mass);
-        self.acceleration.y = self.acceleration.y + (fy / self.mass);
+        self.acceleration.x += fx / self.mass;
+        self.acceleration.y += fy / self.mass;
     }
 
     fn set_resulting_force(&mut self, fx: f64, fy: f64) {
@@ -111,8 +111,8 @@ impl Engine {
             let sy = (dt / 2.0) * (vy + body.velocity.y);
             body.velocity = v(vx, vy);
             body.mesh.iter_mut().for_each(|pos| {
-                pos.x = pos.x + sx;
-                pos.y = pos.y + sy;
+                pos.x += sx;
+                pos.y += sy;
             });
         }
     }
@@ -160,12 +160,12 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
 
         let shape1_projections = shape1
             .iter()
-            .map(|p| project(&p, a_orth))
+            .map(|p| project(p, a_orth))
             .collect::<Vec<_>>();
 
         let shape2_projections = shape2
             .iter()
-            .map(|p| project(&p, a_orth))
+            .map(|p| project(p, a_orth))
             .collect::<Vec<_>>();
 
         let shape1_min = shape1_projections
@@ -207,7 +207,7 @@ fn generate_terrain() -> Vec<Position> {
 
     for _ in 0..21 {
         terrain.push(pos(x, rng.gen_range(2.0..20.0)));
-        x = x + right_limit / 20.0;
+        x += right_limit / 20.0;
     }
 
     let landing_site_index = rng.gen_range(0..terrain.len() - 1);
