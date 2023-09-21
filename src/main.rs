@@ -356,34 +356,34 @@ mod test {
     #[test]
     fn create_still_body() {
         let mut engine = Engine::create(10.0);
-        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine.add_body(ConvexBody::still_body(10.0, &[pos(100.0, 100.0)]));
         engine.tick(1.0);
         {
             let body = &engine.get_bodies()[0];
-            assert_eq!(body.pos, pos(100.0, 95.0));
+            assert_eq!(body.mesh, [pos(100.0, 95.0)]);
         }
         engine.tick(1.0);
         {
             let body = &engine.get_bodies()[0];
-            assert_eq!(body.pos, pos(100.0, 80.0));
+            assert_eq!(body.mesh, [pos(100.0, 80.0)]);
         }
     }
 
     #[test]
     fn free_fall_on_moon() {
         let mut engine = Engine::create(1.625);
-        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine.add_body(ConvexBody::still_body(10.0, &[pos(100.0, 100.0)]));
         engine.tick(1.0);
         {
             let body = &engine.get_bodies()[0];
-            assert_eq!(body.pos, pos(100.0, 99.1875));
+            assert_eq!(body.mesh, [pos(100.0, 99.1875)]);
         }
     }
 
     #[test]
     fn force_opposite_to_gravity() {
         let mut engine = Engine::create(10.0);
-        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine.add_body(ConvexBody::still_body(10.0, &[pos(100.0, 100.0)]));
         engine
             .get_bodies_mut()
             .first_mut()
@@ -394,13 +394,13 @@ mod test {
 
         let body = engine.get_bodies().first().unwrap();
 
-        assert_eq!(body.pos, pos(100.0, 100.0));
+        assert_eq!(body.mesh, [pos(100.0, 100.0)]);
     }
 
     #[test]
     fn set_resulting_force() {
         let mut engine = Engine::create(10.0);
-        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine.add_body(ConvexBody::still_body(10.0, &[pos(100.0, 100.0)]));
         engine
             .get_bodies_mut()
             .first_mut()
@@ -411,13 +411,13 @@ mod test {
 
         let body = engine.get_bodies().first().unwrap();
 
-        assert_eq!(body.pos, pos(100.0, 100.0));
+        assert_eq!(body.mesh, [pos(100.0, 100.0)]);
     }
 
     #[test]
     fn forces_on_both_axis() {
         let mut engine = Engine::create(0.0);
-        engine.add_body(UniformBody::still_body(10.0, pos(100.0, 100.0)));
+        engine.add_body(ConvexBody::still_body(10.0, &[pos(100.0, 100.0)]));
 
         {
             let body = engine.get_bodies_mut().first_mut().unwrap();
@@ -429,7 +429,7 @@ mod test {
         engine.tick(1.0);
 
         let body = engine.get_bodies_mut().first_mut().unwrap();
-        assert_eq!(body.pos, pos(105.0, 105.0));
+        assert_eq!(body.mesh, [pos(105.0, 105.0)]);
     }
 
     #[test]
