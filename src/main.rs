@@ -29,6 +29,7 @@ fn pos(x: f64, y: f64) -> Position {
     Position { x, y }
 }
 
+#[allow(unused_macros)]
 macro_rules! positions {
     ($(($x:expr, $y:expr)),*) => {
         [$(crate::Position{ x: $x, y: $y }),*]
@@ -36,18 +37,18 @@ macro_rules! positions {
 }
 
 #[derive(Debug)]
-struct UniformBody {
+struct ConvexBody {
     mass: f64,
-    pos: Position,
+    mesh: Vec<Position>,
     acceleration: Vector,
     velocity: Vector,
 }
 
-impl UniformBody {
-    fn still_body(m: f64, p: Position) -> UniformBody {
-        UniformBody {
+impl ConvexBody {
+    fn still_body(m: f64, mesh: &[Position]) -> ConvexBody {
+        ConvexBody {
             mass: m,
-            pos: p,
+            mesh: Vec::from(mesh),
             acceleration: v(0.0, 0.0),
             velocity: v(0.0, 0.0),
         }
@@ -65,7 +66,7 @@ impl UniformBody {
 }
 
 struct Engine {
-    bodies: Vec<UniformBody>,
+    bodies: Vec<ConvexBody>,
     ga: f64,
 }
 
@@ -109,25 +110,29 @@ impl Engine {
             let sx = (dt / 2.0) * (vx + body.velocity.x);
             let sy = (dt / 2.0) * (vy + body.velocity.y);
             body.velocity = v(vx, vy);
-            body.pos = pos(body.pos.x + sx, body.pos.y + sy);
+            body.mesh.iter_mut().for_each(|pos| {
+                pos.x = pos.x + sx;
+                pos.y = pos.y + sy;
+            });
         }
     }
 
-    fn add_body(&mut self, b: UniformBody) {
+    fn add_body(&mut self, b: ConvexBody) {
         self.bodies.push(b);
     }
 
-    fn get_bodies(&self) -> &[UniformBody] {
+    fn get_bodies(&self) -> &[ConvexBody] {
         self.bodies.as_slice()
     }
 
-    fn get_bodies_mut(&mut self) -> &mut [UniformBody] {
+    fn get_bodies_mut(&mut self) -> &mut [ConvexBody] {
         self.bodies.as_mut_slice()
     }
 }
 
 // Projects point `position` onto a line with gradient
 // `line_gradient` and y-interception 0.
+#[allow(dead_code)]
 fn project(position: &Position, line_gradient: f64) -> Position {
     let p = position;
     let a = line_gradient;
@@ -147,6 +152,7 @@ fn project(position: &Position, line_gradient: f64) -> Position {
 
 // Checks for collision between two convex polygons using
 // the "separating axis theorem" approach.
+#[allow(dead_code)]
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
     shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
         let a = (p1.y - p2.y) / (p1.x - p2.x);
@@ -230,18 +236,33 @@ fn main() {
     .unwrap();
 
     let mut engine = Engine::create(1.625);
-    engine.add_body(UniformBody::still_body(10.0, pos(50.0, 100.0)));
+    engine.add_body(ConvexBody::still_body(
+        10.0,
+        &[
+            pos(49.0, 99.0),
+            pos(51.0, 99.0),
+            pos(51.0, 101.0),
+            pos(49.0, 101.0),
+        ],
+    ));
 
     let terrain = generate_terrain();
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _device| {
             clear([1.0; 4], graphics);
-            let border = Ellipse::new_border([1.0, 0.0, 0.0, 1.0], viewport.translate_size(1.0));
             let body = &engine.get_bodies()[0];
-            let pos = viewport.translate_pos(&body.pos);
-            border.draw(
-                rectangle::centered_square(pos.x, pos.y, viewport.translate_size(1.0)),
+            let p = Polygon::new([1.0, 0.0, 0.0, 1.0]);
+            let polygon_mesh: Vec<[f64; 2]> = body
+                .mesh
+                .iter()
+                .map(|p| {
+                    let t = viewport.translate_pos(p);
+                    [t.x, t.y]
+                })
+                .collect();
+            p.draw(
+                polygon_mesh.as_slice(),
                 &context.draw_state,
                 context.transform,
                 graphics,
