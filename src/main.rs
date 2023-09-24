@@ -218,6 +218,23 @@ fn generate_terrain() -> Vec<Position> {
     terrain
 }
 
+/// Partitions `terrain` into triangles so they can
+/// be used later in collision detection.
+fn partition_terrain(terrain: &[Position]) -> Vec<[Position; 4]> {
+    terrain
+        .iter()
+        .tuple_windows()
+        .map(|(p1, p2)| {
+            [
+                p1.clone(),
+                p2.clone(),
+                pos(p2.x, p2.y - 10.0),
+                pos(p1.x, p1.y - 10.0),
+            ]
+        })
+        .collect()
+}
+
 fn main() {
     let viewport = ViewPort {
         origin: pos(0.0, 100.0),
@@ -461,5 +478,19 @@ mod test {
         let triangle1 = positions![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)];
         let triangle2 = positions![(2.0, 2.0), (1.0, 4.0), (3.0, 4.0)];
         assert!(collided(&triangle1, &triangle2));
+    }
+
+    #[test]
+    fn partition_terrain_test() {
+        let terrain = positions![(0.0, 5.0), (1.0, 6.0), (2.0, 4.0), (3.0, 4.0)];
+        let polygons = partition_terrain(&terrain);
+        assert_eq!(
+            polygons.as_slice(),
+            &[
+                positions![(0.0, 5.0), (1.0, 6.0), (1.0, -4.0), (0.0, -5.0)],
+                positions![(1.0, 6.0), (2.0, 4.0), (2.0, -6.0), (1.0, -4.0)],
+                positions![(2.0, 4.0), (3.0, 4.0), (3.0, -6.0), (2.0, -6.0)]
+            ]
+        );
     }
 }
