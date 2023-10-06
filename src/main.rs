@@ -10,7 +10,7 @@ struct Vector {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Position {
+pub struct Position {
     x: f64,
     y: f64,
 }
@@ -42,6 +42,7 @@ struct ConvexBody {
     mesh: Vec<Position>,
     acceleration: Vector,
     velocity: Vector,
+    fixed: bool,
 }
 
 impl ConvexBody {
@@ -51,6 +52,17 @@ impl ConvexBody {
             mesh: Vec::from(mesh),
             acceleration: v(0.0, 0.0),
             velocity: v(0.0, 0.0),
+            fixed: false,
+        }
+    }
+
+    fn fixed_body(mesh: &[Position]) -> ConvexBody {
+        ConvexBody {
+            mass: 0.0,
+            mesh: Vec::from(mesh),
+            acceleration: v(0.0, 0.0),
+            velocity: v(0.0, 0.0),
+            fixed: true,
         }
     }
 
@@ -102,18 +114,39 @@ impl ViewPort {
 
 impl Engine {
     fn tick(&mut self, dt: f64) {
-        for body in self.bodies.iter_mut() {
-            let ax = body.acceleration.x;
-            let ay = body.acceleration.y - self.ga;
-            let vx = body.velocity.x + (ax * dt);
-            let vy = body.velocity.y + (ay * dt);
-            let sx = (dt / 2.0) * (vx + body.velocity.x);
-            let sy = (dt / 2.0) * (vy + body.velocity.y);
-            body.velocity = v(vx, vy);
-            body.mesh.iter_mut().for_each(|pos| {
-                pos.x += sx;
-                pos.y += sy;
-            });
+        for i in 0..self.bodies.len() {
+            let moved = {
+                let body = self.bodies.get_mut(i).unwrap();
+                if body.fixed {
+                    continue;
+                }
+                let ax = body.acceleration.x;
+                let ay = body.acceleration.y - self.ga;
+                let vx = body.velocity.x + (ax * dt);
+                let vy = body.velocity.y + (ay * dt);
+                let sx = (dt / 2.0) * (vx + body.velocity.x);
+                let sy = (dt / 2.0) * (vy + body.velocity.y);
+                body.velocity = v(vx, vy);
+                body.mesh.iter_mut().for_each(|pos| {
+                    pos.x += sx;
+                    pos.y += sy;
+                });
+                sx != 0.0 || sy != 0.0
+            };
+            if moved {
+                let body = self.bodies.get(i).unwrap();
+                let collisions = self
+                    .bodies
+                    .iter()
+                    .filter(|other| {
+                        std::ptr::addr_of!(**other) != std::ptr::addr_of!(*body)
+                            && collided(body.mesh.as_slice(), other.mesh.as_slice())
+                    })
+                    .collect::<Vec<_>>();
+                if collisions.len() > 0 {
+                    println!("collisions {}", collisions.len());
+                }
+            }
         }
     }
 
@@ -132,12 +165,11 @@ impl Engine {
 
 // Projects point `position` onto a line with gradient
 // `line_gradient` and y-interception 0.
-#[allow(dead_code)]
 fn project(position: &Position, line_gradient: f64) -> Position {
     let p = position;
     let a = line_gradient;
 
-    if line_gradient == f64::INFINITY {
+    if line_gradient == f64::INFINITY || line_gradient == f64::NEG_INFINITY {
         pos(0.0, p.y)
     } else if line_gradient.abs() < f64::EPSILON {
         pos(p.x, 0.0)
@@ -152,7 +184,6 @@ fn project(position: &Position, line_gradient: f64) -> Position {
 
 // Checks for collision between two convex polygons using
 // the "separating axis theorem" approach.
-#[allow(dead_code)]
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
     shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
         let a = (p1.y - p2.y) / (p1.x - p2.x);
@@ -192,8 +223,8 @@ fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
                 pos(max_p.x.max(p.x), max_p.y.max(p.y))
             });
 
-        (shape1_max.x >= shape2_min.x || shape1_max.y >= shape2_min.y)
-            && (shape2_max.x >= shape1_min.x && shape2_max.y >= shape1_min.y)
+        (shape1_max.x >= shape2_min.x && shape2_max.x >= shape1_min.x)
+            && (shape1_max.y >= shape2_min.y && shape2_max.y >= shape1_min.y)
     })
 }
 
@@ -252,18 +283,25 @@ fn main() {
     .build()
     .unwrap();
 
-    let mut engine = Engine::create(1.625);
+    let g = 1.625;
+
+    let mut engine = Engine::create(g);
     engine.add_body(ConvexBody::still_body(
         10.0,
         &[
-            pos(49.0, 99.0),
-            pos(51.0, 99.0),
-            pos(51.0, 101.0),
-            pos(49.0, 101.0),
+            pos(49.0, 100.0),
+            pos(51.0, 100.0),
+            pos(51.0, 98.0),
+            pos(49.0, 98.0),
         ],
     ));
 
     let terrain = generate_terrain();
+    partition_terrain(terrain.as_slice())
+        .iter()
+        .for_each(|polygon| {
+            engine.add_body(ConvexBody::fixed_body(polygon));
+        });
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _device| {
@@ -481,6 +519,25 @@ mod test {
     }
 
     #[test]
+    fn collision_two_rectangles() {
+        let mesh1 = [
+            pos(0.0, 20.0),
+            pos(100.0, 20.0),
+            pos(100.0, 10.0),
+            pos(0.0, 10.0),
+        ];
+
+        let mesh2 = [
+            pos(40.0, 20.0),
+            pos(50.0, 20.0),
+            pos(50.0, 30.0),
+            pos(40.0, 30.0),
+        ];
+
+        assert!(collided(&mesh1, &mesh2));
+    }
+
+    #[test]
     fn partition_terrain_test() {
         let terrain = positions![(0.0, 5.0), (1.0, 6.0), (2.0, 4.0), (3.0, 4.0)];
         let polygons = partition_terrain(&terrain);
@@ -492,5 +549,21 @@ mod test {
                 positions![(2.0, 4.0), (3.0, 4.0), (3.0, -6.0), (2.0, -6.0)]
             ]
         );
+    }
+
+    #[test]
+    fn collision_between_non_fixed_and_fixed_body() {
+        let mut engine = Engine::create(10.0);
+        engine.add_body(ConvexBody::fixed_body(&positions![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, -1.0),
+            (0.0, -1.0)
+        ]));
+        engine.add_body(ConvexBody::still_body(
+            10.0,
+            &positions![(1.0, 1.0), (2.0, 1.0), (1.5, 2.0)],
+        ));
+        engine.tick(0.5);
     }
 }
