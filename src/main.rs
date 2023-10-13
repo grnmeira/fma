@@ -538,6 +538,25 @@ mod test {
     }
 
     #[test]
+    fn collision_trapezoid_and_rectangle() {
+        let trapezoid = [
+            pos(0.0, 20.0),
+            pos(20.0, 10.0),
+            pos(20.0, 0.0),
+            pos(0.0, 0.0),
+        ];
+
+        let rectangle = [
+            pos(15.0, 19.0),
+            pos(15.0, 29.0),
+            pos(30.0, 29.0),
+            pos(30.0, 19.0),
+        ];
+
+        assert!(!collided(&rectangle, &trapezoid));
+    }
+
+    #[test]
     fn partition_terrain_test() {
         let terrain = positions![(0.0, 5.0), (1.0, 6.0), (2.0, 4.0), (3.0, 4.0)];
         let polygons = partition_terrain(&terrain);
