@@ -143,7 +143,7 @@ impl Engine {
                             && collided(body.mesh.as_slice(), other.mesh.as_slice())
                     })
                     .collect::<Vec<_>>();
-                if collisions.len() > 0 {
+                if !collisions.is_empty() {
                     println!("collisions {}", collisions.len());
                 }
             }
@@ -163,13 +163,13 @@ impl Engine {
     }
 }
 
-// Projects point `position` onto a line with gradient
-// `line_gradient` and y-interception 0.
+/// Projects point `position` onto a line with gradient
+/// `line_gradient` and y-interception 0.
 fn project(position: &Position, line_gradient: f64) -> Position {
     let p = position;
     let a = line_gradient;
 
-    if line_gradient == f64::INFINITY || line_gradient == f64::NEG_INFINITY {
+    if line_gradient.is_infinite() {
         pos(0.0, p.y)
     } else if line_gradient.abs() < f64::EPSILON {
         pos(p.x, 0.0)
@@ -182,9 +182,16 @@ fn project(position: &Position, line_gradient: f64) -> Position {
     }
 }
 
-// Checks for collision between two convex polygons using
-// the "separating axis theorem" approach.
+/// Checks for collision between two convex polygons using
+/// the "separating axis theorem" approach.
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
+    check_for_separating_axis(shape1, shape2) && check_for_separating_axis(shape2, shape1)
+}
+
+/// Checks for a separating axis between `shape1` and `shape2`. It does that
+/// based on the shape projections onto lines that are solely perpendicular to
+/// the edges of `shape1`.
+fn check_for_separating_axis(shape1: &[Position], shape2: &[Position]) -> bool {
     shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
         let a = (p1.y - p2.y) / (p1.x - p2.x);
         let a_orth = -1.0 / a;
@@ -249,7 +256,7 @@ fn generate_terrain() -> Vec<Position> {
     terrain
 }
 
-/// Partitions `terrain` into triangles so they can
+/// Partitions `terrain` onto non-convex polygons so they can
 /// be used later in collision detection.
 fn partition_terrain(terrain: &[Position]) -> Vec<[Position; 4]> {
     terrain
@@ -540,17 +547,17 @@ mod test {
     #[test]
     fn collision_trapezoid_and_rectangle() {
         let trapezoid = [
-            pos(0.0, 20.0),
-            pos(20.0, 10.0),
-            pos(20.0, 0.0),
             pos(0.0, 0.0),
+            pos(20.0, 0.0),
+            pos(10.0, 10.0),
+            pos(0.0, 10.0),
         ];
 
         let rectangle = [
-            pos(15.0, 19.0),
-            pos(15.0, 29.0),
-            pos(30.0, 29.0),
-            pos(30.0, 19.0),
+            pos(16.0, 5.0),
+            pos(25.0, 5.0),
+            pos(25.0, 15.0),
+            pos(16.0, 15.0),
         ];
 
         assert!(!collided(&rectangle, &trapezoid));
