@@ -121,9 +121,9 @@ impl ViewPort {
 }
 
 impl Engine {
-    fn update_body_position(body: &mut ConvexBody) -> bool {
+    fn update_body_position(body: &mut ConvexBody, ga: f64, dt: f64) -> bool {
         let ax = body.acceleration.x;
-        let ay = body.acceleration.y - self.ga;
+        let ay = body.acceleration.y - ga;
         let vx = body.velocity.x + (ax * dt);
         let vy = body.velocity.y + (ay * dt);
         let sx = (dt / 2.0) * (vx + body.velocity.x);
@@ -137,28 +137,16 @@ impl Engine {
     }
 
     fn tick(&mut self, dt: f64) {
-        for i in 0..self.bodies.len() {
-            let moved = {
-                let body = self.bodies.get_mut(i).unwrap();
-                if body.fixed {
-                    continue;
-                }
-                Self::update_body_position(body)
-            };
-            if moved {
-                let body = self.bodies.get(i).unwrap();
-                let collisions = self
-                    .bodies
-                    .iter()
-                    .filter(|other| {
-                        std::ptr::addr_of!(**other) != std::ptr::addr_of!(*body)
-                            && collided(body.mesh.as_slice(), other.mesh.as_slice())
-                    })
-                    .collect::<Vec<_>>();
-                if !collisions.is_empty() {
-                    println!("collisions {}", collisions.len());
-                }
-            }
+        self.bodies.iter_mut().for_each(|body|{
+            Self::update_body_position(body, self.ga, dt);
+        });
+        let collisions = self.bodies.iter().cartesian_product(self.bodies.iter()).filter(|pair|{
+            std::ptr::addr_of!(*pair.0) != std::ptr::addr_of!(*pair.1)
+        }).filter(|pair|{
+            !check_for_separating_axis(pair.0.mesh.as_slice(), pair.1.mesh.as_slice())
+        }).collect::<Vec<_>>();
+        if !collisions.is_empty(){
+            //println!("{collisions:?}");
         }
     }
 
@@ -292,7 +280,7 @@ fn main() {
     };
 
     let mut window: PistonWindow = WindowSettings::new(
-        "Hello Piston!",
+        "Lander",
         [
             viewport.translate_size(100.0),
             viewport.translate_size(100.0),
