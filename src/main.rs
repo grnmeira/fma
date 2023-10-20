@@ -43,6 +43,7 @@ struct ConvexBody {
     acceleration: Vector,
     velocity: Vector,
     fixed: bool,
+    report_collision: bool,
 }
 
 impl ConvexBody {
@@ -53,6 +54,7 @@ impl ConvexBody {
             acceleration: v(0.0, 0.0),
             velocity: v(0.0, 0.0),
             fixed: false,
+            report_collision: false,
         }
     }
 
@@ -63,6 +65,7 @@ impl ConvexBody {
             acceleration: v(0.0, 0.0),
             velocity: v(0.0, 0.0),
             fixed: true,
+            report_collision: false,
         }
     }
 
@@ -74,6 +77,11 @@ impl ConvexBody {
     fn set_resulting_force(&mut self, fx: f64, fy: f64) {
         self.acceleration.x = fx / self.mass;
         self.acceleration.y = fy / self.mass;
+    }
+
+    fn report_collision(mut self) -> Self {
+        self.report_collision = true;
+        self
     }
 }
 
@@ -113,6 +121,21 @@ impl ViewPort {
 }
 
 impl Engine {
+    fn update_body_position(body: &mut ConvexBody) -> bool {
+        let ax = body.acceleration.x;
+        let ay = body.acceleration.y - self.ga;
+        let vx = body.velocity.x + (ax * dt);
+        let vy = body.velocity.y + (ay * dt);
+        let sx = (dt / 2.0) * (vx + body.velocity.x);
+        let sy = (dt / 2.0) * (vy + body.velocity.y);
+        body.velocity = v(vx, vy);
+        body.mesh.iter_mut().for_each(|pos| {
+            pos.x += sx;
+            pos.y += sy;
+        });
+        sx != 0.0 || sy != 0.0
+    }
+
     fn tick(&mut self, dt: f64) {
         for i in 0..self.bodies.len() {
             let moved = {
@@ -120,18 +143,7 @@ impl Engine {
                 if body.fixed {
                     continue;
                 }
-                let ax = body.acceleration.x;
-                let ay = body.acceleration.y - self.ga;
-                let vx = body.velocity.x + (ax * dt);
-                let vy = body.velocity.y + (ay * dt);
-                let sx = (dt / 2.0) * (vx + body.velocity.x);
-                let sy = (dt / 2.0) * (vy + body.velocity.y);
-                body.velocity = v(vx, vy);
-                body.mesh.iter_mut().for_each(|pos| {
-                    pos.x += sx;
-                    pos.y += sy;
-                });
-                sx != 0.0 || sy != 0.0
+                Self::update_body_position(body)
             };
             if moved {
                 let body = self.bodies.get(i).unwrap();
@@ -293,7 +305,7 @@ fn main() {
     let g = 1.625;
 
     let mut engine = Engine::create(g);
-    engine.add_body(ConvexBody::still_body(
+    let mut lander = ConvexBody::still_body(
         10.0,
         &[
             pos(49.0, 100.0),
@@ -301,7 +313,9 @@ fn main() {
             pos(51.0, 98.0),
             pos(49.0, 98.0),
         ],
-    ));
+    )
+    .report_collision();
+    engine.add_body(lander);
 
     let terrain = generate_terrain();
     partition_terrain(terrain.as_slice())
