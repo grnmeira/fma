@@ -54,7 +54,7 @@ impl ConvexBody {
             acceleration: v(0.0, 0.0),
             velocity: v(0.0, 0.0),
             fixed: false,
-            report_collision: false,
+            report_collision: true,
         }
     }
 
@@ -122,6 +122,9 @@ impl ViewPort {
 
 impl Engine {
     fn update_body_position(body: &mut ConvexBody, ga: f64, dt: f64) -> bool {
+        if body.fixed {
+            return false;
+        }
         let ax = body.acceleration.x;
         let ay = body.acceleration.y - ga;
         let vx = body.velocity.x + (ax * dt);
@@ -140,13 +143,12 @@ impl Engine {
         self.bodies.iter_mut().for_each(|body|{
             Self::update_body_position(body, self.ga, dt);
         });
-        let collisions = self.bodies.iter().cartesian_product(self.bodies.iter()).filter(|pair|{
-            std::ptr::addr_of!(*pair.0) != std::ptr::addr_of!(*pair.1)
-        }).filter(|pair|{
-            !check_for_separating_axis(pair.0.mesh.as_slice(), pair.1.mesh.as_slice())
+        let collisions = self.bodies.iter().combinations(2).filter(|pair|{
+            (pair[0].report_collision || pair[1].report_collision) &&
+            collided(pair[0].mesh.as_slice(), pair[1].mesh.as_slice())
         }).collect::<Vec<_>>();
         if !collisions.is_empty(){
-            //println!("{collisions:?}");
+            println!("{collisions:?}");
         }
     }
 
@@ -185,14 +187,14 @@ fn project(position: &Position, line_gradient: f64) -> Position {
 /// Checks for collision between two convex polygons using
 /// the "separating axis theorem" approach.
 fn collided(shape1: &[Position], shape2: &[Position]) -> bool {
-    check_for_separating_axis(shape1, shape2) && check_for_separating_axis(shape2, shape1)
+    !(check_for_separating_axis(shape1, shape2) || check_for_separating_axis(shape2, shape1))
 }
 
 /// Checks for a separating axis between `shape1` and `shape2`. It does that
 /// based on the shape projections onto lines that are solely perpendicular to
 /// the edges of `shape1`.
 fn check_for_separating_axis(shape1: &[Position], shape2: &[Position]) -> bool {
-    shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
+    !shape1.iter().circular_tuple_windows().all(|(p1, p2)| {
         let a = (p1.y - p2.y) / (p1.x - p2.x);
         let a_orth = -1.0 / a;
 
@@ -293,7 +295,7 @@ fn main() {
     let g = 1.625;
 
     let mut engine = Engine::create(g);
-    let mut lander = ConvexBody::still_body(
+    let lander = ConvexBody::still_body(
         10.0,
         &[
             pos(49.0, 100.0),
