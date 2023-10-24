@@ -88,6 +88,7 @@ impl ConvexBody {
 struct Engine {
     bodies: Vec<ConvexBody>,
     ga: f64,
+    collisions: Vec<(usize, usize)>
 }
 
 impl Engine {
@@ -95,7 +96,12 @@ impl Engine {
         Engine {
             bodies: vec![],
             ga: g,
+            collisions: vec![]
         }
+    }
+
+    fn has_collisions(&self)-> bool {
+        !self.collisions.is_empty()
     }
 }
 
@@ -120,6 +126,8 @@ impl ViewPort {
     }
 }
 
+type BodyId = usize;
+
 impl Engine {
     fn update_body_position(body: &mut ConvexBody, ga: f64, dt: f64) -> bool {
         if body.fixed {
@@ -143,17 +151,19 @@ impl Engine {
         self.bodies.iter_mut().for_each(|body|{
             Self::update_body_position(body, self.ga, dt);
         });
-        let collisions = self.bodies.iter().combinations(2).filter(|pair|{
-            (pair[0].report_collision || pair[1].report_collision) &&
-            collided(pair[0].mesh.as_slice(), pair[1].mesh.as_slice())
-        }).collect::<Vec<_>>();
-        if !collisions.is_empty(){
-            println!("{collisions:?}");
+        let collisions = self.bodies.iter().enumerate().combinations(2).filter(|pair|{
+            let body1 = pair[0].1;
+            let body2 = pair[1].1;
+            (body1.report_collision || body2.report_collision) && collided(body1.mesh.as_slice(), body2.mesh.as_slice())
+        }).map(|v| (v[0].0, v[1].0)).collect::<Vec<_>>();
+        if !collisions.is_empty() {
+            self.collisions = collisions;
         }
     }
 
-    fn add_body(&mut self, b: ConvexBody) {
+    fn add_body(&mut self, b: ConvexBody) -> BodyId {
         self.bodies.push(b);
+        self.bodies.len() - 1
     }
 
     fn get_bodies(&self) -> &[ConvexBody] {
@@ -305,7 +315,7 @@ fn main() {
         ],
     )
     .report_collision();
-    engine.add_body(lander);
+    let lander_body_id = engine.add_body(lander);
 
     let terrain = generate_terrain();
     partition_terrain(terrain.as_slice())
@@ -350,6 +360,10 @@ fn main() {
 
         if let Some(update_args) = event.update_args() {
             engine.tick(update_args.dt);
+            if engine.has_collisions()
+            {
+                println!("Has collision!");
+            }
         }
 
         if let Some(button_args) = event.button_args() {
