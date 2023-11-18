@@ -88,7 +88,7 @@ impl ConvexBody {
 struct Engine {
     bodies: Vec<ConvexBody>,
     ga: f64,
-    collisions: Vec<(usize, usize)>
+    collisions: Vec<(usize, usize)>,
 }
 
 impl Engine {
@@ -96,11 +96,11 @@ impl Engine {
         Engine {
             bodies: vec![],
             ga: g,
-            collisions: vec![]
+            collisions: vec![],
         }
     }
 
-    fn has_collisions(&self)-> bool {
+    fn has_collisions(&self) -> bool {
         !self.collisions.is_empty()
     }
 }
@@ -148,17 +148,23 @@ impl Engine {
     }
 
     fn tick(&mut self, dt: f64) {
-        self.bodies.iter_mut().for_each(|body|{
+        self.bodies.iter_mut().for_each(|body| {
             Self::update_body_position(body, self.ga, dt);
         });
-        let collisions = self.bodies.iter().enumerate().combinations(2).filter(|pair|{
-            let body1 = pair[0].1;
-            let body2 = pair[1].1;
-            (body1.report_collision || body2.report_collision) && collided(body1.mesh.as_slice(), body2.mesh.as_slice())
-        }).map(|v| (v[0].0, v[1].0)).collect::<Vec<_>>();
-        if !collisions.is_empty() {
-            self.collisions = collisions;
-        }
+        let collisions = self
+            .bodies
+            .iter()
+            .enumerate()
+            .combinations(2)
+            .filter(|pair| {
+                let body1 = pair[0].1;
+                let body2 = pair[1].1;
+                (body1.report_collision || body2.report_collision)
+                    && collided(body1.mesh.as_slice(), body2.mesh.as_slice())
+            })
+            .map(|v| (v[0].0, v[1].0))
+            .collect::<Vec<_>>();
+        self.collisions = collisions;
     }
 
     fn add_body(&mut self, b: ConvexBody) -> BodyId {
@@ -268,19 +274,26 @@ fn generate_terrain() -> Vec<Position> {
     terrain
 }
 
+struct TerrainPartition {
+    pub safe: bool,
+    pub mesh: [Position; 4],
+}
+
 /// Partitions `terrain` onto non-convex polygons so they can
-/// be used later in collision detection.
-fn partition_terrain(terrain: &[Position]) -> Vec<[Position; 4]> {
+/// be used later in collision detection, plus, tags the partition
+/// with a safe or non-safe (for landing) attribute.
+fn partition_terrain(terrain: &[Position]) -> Vec<TerrainPartition> {
     terrain
         .iter()
         .tuple_windows()
-        .map(|(p1, p2)| {
-            [
+        .map(|(p1, p2)| TerrainPartition {
+            safe: p1 == p2,
+            mesh: [
                 p1.clone(),
                 p2.clone(),
                 pos(p2.x, p2.y - 10.0),
                 pos(p1.x, p1.y - 10.0),
-            ]
+            ],
         })
         .collect()
 }
@@ -318,11 +331,13 @@ fn main() {
     let lander_body_id = engine.add_body(lander);
 
     let terrain = generate_terrain();
-    partition_terrain(terrain.as_slice())
+    let terrain_safety: Vec<_> = partition_terrain(generate_terrain().as_slice())
         .iter()
-        .for_each(|polygon| {
-            engine.add_body(ConvexBody::fixed_body(polygon));
-        });
+        .map(|partition| {
+            let partition_id = engine.add_body(ConvexBody::fixed_body(&partition.mesh));
+            (partition_id, partition.safe)
+        })
+        .collect();
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _device| {
@@ -360,9 +375,26 @@ fn main() {
 
         if let Some(update_args) = event.update_args() {
             engine.tick(update_args.dt);
-            if engine.has_collisions()
-            {
-                println!("Has collision!");
+            if (engine.has_collisions()) {
+                let is_safe_landing = engine
+                    .collisions
+                    .iter()
+                    .filter_map(|c| match c {
+                        (lander_body_id, _) => Some(c.1),
+                        (_, lander_body_id) => Some(c.0),
+                        _ => None,
+                    })
+                    .map(|partition_body_id| {
+                        terrain_safety
+                            .iter()
+                            .filter_map(|(body_id, safe)| match body_id {
+                                partition_body_id => Some(safe),
+                                _ => None,
+                            })
+                            .all(|safe| *safe == true)
+                    })
+                    .all(|safe| safe == true);
+                println!("{is_safe_landing}");
             }
         }
 
