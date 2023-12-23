@@ -274,6 +274,7 @@ fn generate_terrain() -> Vec<Position> {
     terrain
 }
 
+#[derive(PartialEq, Debug)]
 struct TerrainPartition {
     pub safe: bool,
     pub mesh: [Position; 4],
@@ -331,7 +332,7 @@ fn main() {
     let lander_body_id = engine.add_body(lander);
 
     let terrain = generate_terrain();
-    let terrain_safety: Vec<_> = partition_terrain(generate_terrain().as_slice())
+    let terrain_safety: Vec<_> = partition_terrain(terrain.as_slice())
         .iter()
         .map(|partition| {
             let partition_id = engine.add_body(ConvexBody::fixed_body(&partition.mesh));
@@ -340,6 +341,26 @@ fn main() {
         .collect();
 
     while let Some(event) = window.next() {
+        if let Some(update_args) = event.update_args() {
+            engine.tick(update_args.dt);
+            if engine.has_collisions() {
+                println!("{:#?}", engine.collisions);
+                let body_id = match engine.collisions.first().unwrap() {
+                    (id, 0) => id,
+                    (0, id) => id,
+                    _ => panic!(),
+                };
+                let body = &engine.get_bodies()[*body_id];
+                println!("{:#?}", body);
+                let body = &engine.get_bodies().first().unwrap();
+                println!("{:#?}", body);
+                let mut body = &mut engine.get_bodies_mut()[0];
+                body.set_resulting_force(0.0, 0.0);
+                body.acceleration = v(0.0, 0.0);
+                body.fixed = true;
+            }
+        }
+
         window.draw_2d(&event, |context, graphics, _device| {
             clear([1.0; 4], graphics);
             let body = &engine.get_bodies()[0];
@@ -372,31 +393,6 @@ fn main() {
                     );
                 });
         });
-
-        if let Some(update_args) = event.update_args() {
-            engine.tick(update_args.dt);
-            if (engine.has_collisions()) {
-                let is_safe_landing = engine
-                    .collisions
-                    .iter()
-                    .filter_map(|c| match c {
-                        (lander_body_id, _) => Some(c.1),
-                        (_, lander_body_id) => Some(c.0),
-                        _ => None,
-                    })
-                    .map(|partition_body_id| {
-                        terrain_safety
-                            .iter()
-                            .filter_map(|(body_id, safe)| match body_id {
-                                partition_body_id => Some(safe),
-                                _ => None,
-                            })
-                            .all(|safe| *safe == true)
-                    })
-                    .all(|safe| safe == true);
-                println!("{is_safe_landing}");
-            }
-        }
 
         if let Some(button_args) = event.button_args() {
             let body = engine.get_bodies_mut().first_mut().unwrap();
@@ -611,6 +607,50 @@ mod test {
         ];
 
         assert!(!collided(&rectangle, &trapezoid));
+        assert!(!collided(&rectangle, &trapezoid));
+    }
+
+    #[test]
+    fn collision_bug_test() {
+        let m1 = [
+            crate::Position {
+                x: 49.0,
+                y: 15.743524305555098,
+            },
+            crate::Position {
+                x: 51.0,
+                y: 15.743524305555098,
+            },
+            crate::Position {
+                x: 51.0,
+                y: 13.743524305555086,
+            },
+            crate::Position {
+                x: 49.0,
+                y: 13.743524305555086,
+            },
+        ];
+
+        let m2 = [
+            crate::Position {
+                x: 50.0,
+                y: 13.619878363341645,
+            },
+            crate::Position {
+                x: 55.0,
+                y: 14.721771340827875,
+            },
+            crate::Position {
+                x: 55.0,
+                y: 4.721771340827875,
+            },
+            crate::Position {
+                x: 50.0,
+                y: 3.6198783633416447,
+            },
+        ];
+
+        assert!(collided(&m1, &m2));
     }
 
     #[test]
@@ -620,9 +660,18 @@ mod test {
         assert_eq!(
             polygons.as_slice(),
             &[
-                positions![(0.0, 5.0), (1.0, 6.0), (1.0, -4.0), (0.0, -5.0)],
-                positions![(1.0, 6.0), (2.0, 4.0), (2.0, -6.0), (1.0, -4.0)],
-                positions![(2.0, 4.0), (3.0, 4.0), (3.0, -6.0), (2.0, -6.0)]
+                TerrainPartition {
+                    safe: false,
+                    mesh: positions![(0.0, 5.0), (1.0, 6.0), (1.0, -4.0), (0.0, -5.0)]
+                },
+                TerrainPartition {
+                    safe: false,
+                    mesh: positions![(1.0, 6.0), (2.0, 4.0), (2.0, -6.0), (1.0, -4.0)]
+                },
+                TerrainPartition {
+                    safe: false,
+                    mesh: positions![(2.0, 4.0), (3.0, 4.0), (3.0, -6.0), (2.0, -6.0)]
+                }
             ]
         );
     }
