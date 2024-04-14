@@ -288,7 +288,7 @@ fn partition_terrain(terrain: &[Position]) -> Vec<TerrainPartition> {
         .iter()
         .tuple_windows()
         .map(|(p1, p2)| TerrainPartition {
-            safe: p1 == p2,
+            safe: p1.y == p2.y,
             mesh: [
                 p1.clone(),
                 p2.clone(),
@@ -344,17 +344,23 @@ fn main() {
         if let Some(update_args) = event.update_args() {
             engine.tick(update_args.dt);
             if engine.has_collisions() {
-                println!("{:#?}", engine.collisions);
                 let body_id = match engine.collisions.first().unwrap() {
                     (id, 0) => id,
                     (0, id) => id,
                     _ => panic!(),
                 };
-                let body = &engine.get_bodies()[*body_id];
-                println!("{:#?}", body);
-                let body = &engine.get_bodies().first().unwrap();
-                println!("{:#?}", body);
+                let terrain_safety = terrain_safety.iter().find(|t| t.0 == *body_id).unwrap();
                 let mut body = &mut engine.get_bodies_mut()[0];
+                if terrain_safety.1 && body.velocity.x.abs() < 0.55 && body.velocity.y.abs() < 0.55
+                {
+                    println!("SAFE");
+                } else {
+                    println!(
+                        "terrain is safe: {}, speed: {:?}",
+                        terrain_safety.1, body.velocity
+                    );
+                    println!("YOU'RE DEEEEED!")
+                }
                 body.set_resulting_force(0.0, 0.0);
                 body.acceleration = v(0.0, 0.0);
                 body.fixed = true;
